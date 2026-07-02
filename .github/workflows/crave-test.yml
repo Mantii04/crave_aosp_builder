@@ -1,22 +1,22 @@
-name: Crave Builder Test
+name: Crave Connection Test
 
 on:
   workflow_dispatch:
 
 jobs:
-  test:
+  test-crave:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Install deps
+      - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y curl git jq
 
-      - name: Setup crave
+      - name: Install Crave
         env:
           CRAVE_USERNAME: ${{ secrets.CRAVE_USERNAME }}
           CRAVE_TOKEN: ${{ secrets.CRAVE_TOKEN }}
@@ -26,14 +26,25 @@ jobs:
           mv ./crave $HOME/bin/
           echo "$HOME/bin" >> $GITHUB_PATH
 
-      - name: Verify crave
+      - name: Verify Crave install
         run: |
-          crave --version || true
-          echo "Crave installed"
+          crave --version
 
-      - name: Test local manifest clone only
+      - name: Test Crave Authentication
+        env:
+          CRAVE_USERNAME: ${{ secrets.CRAVE_USERNAME }}
+          CRAVE_TOKEN: ${{ secrets.CRAVE_TOKEN }}
         run: |
-          mkdir test
-          cd test
-          git clone https://github.com/sounddrill31/local_manifests_oxygen .repo/local_manifests || true
-          ls -la .repo/local_manifests || true
+          echo "Testing login (no build)..."
+          crave login || echo "Login step finished (check output above)"
+
+      - name: Test Crave Devspace Connection
+        env:
+          CRAVE_FLAGS: ${{ secrets.CRAVE_FLAGS }}
+        run: |
+          echo "Testing devspace connection..."
+          crave $CRAVE_FLAGS devspace -- "echo 'CRAVE CONNECTION OK' && uname -a"
+
+      - name: Final check
+        run: |
+          echo "If you see this, Crave connection test passed"

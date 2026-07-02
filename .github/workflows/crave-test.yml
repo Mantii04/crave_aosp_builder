@@ -1,28 +1,34 @@
-name: Crave Devspace Connection Test
+name: Crave Repo Sync Test
 
 on:
   workflow_dispatch:
     inputs:
       BASE_PROJECT:
-        description: "Base project (test only)"
+        description: "Base project"
         required: true
         default: "LineageOS 21.0"
 
 jobs:
   test:
-    name: Test Real Crave Devspace
+    name: Crave + Repo Sync Test
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # ----------------------------
+      # Install dependencies
+      # ----------------------------
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y curl jq tmux
+          sudo apt-get install -y curl git jq
 
-      - name: Install Crave (original method)
+      # ----------------------------
+      # Install Crave (ORIGINAL METHOD)
+      # ----------------------------
+      - name: Install Crave
         run: |
           echo "Installing Crave..."
 
@@ -31,22 +37,25 @@ jobs:
           curl -s https://raw.githubusercontent.com/accupara/crave/master/get_crave.sh | bash -s --
 
           if [ ! -f "${PWD}/crave" ]; then
-            echo "Crave install failed"
-            ls -la
+            echo "Crave installation failed"
             exit 1
           fi
 
           mv ${PWD}/crave $HOME/bin/
           chmod +x $HOME/bin/crave
-
           sudo ln -sf $HOME/bin/crave /usr/bin/crave
 
+      # ----------------------------
+      # Verify Crave
+      # ----------------------------
       - name: Verify Crave
         run: |
-          which crave
           crave --version || true
 
-      - name: Create Crave config (AUTH)
+      # ----------------------------
+      # Create Crave config (SAFE)
+      # ----------------------------
+      - name: Setup Crave Auth
         run: |
           cat > crave.conf <<EOF
           username=${CRAVE_USERNAME}
@@ -56,15 +65,30 @@ jobs:
           CRAVE_USERNAME: ${{ secrets.CRAVE_USERNAME }}
           CRAVE_TOKEN: ${{ secrets.CRAVE_TOKEN }}
 
-      - name: Start REAL Devspace test
+      # ----------------------------
+      # Test Crave execution + Repo Sync
+      # ----------------------------
+      - name: Crave Repo Sync Test
         run: |
-          echo "Starting devspace test..."
+          echo "=== STARTING CRAVE SYNC TEST ==="
 
-          crave devspace -- "
-            echo '--- INSIDE DEVSPACE ---' &&
-            whoami &&
-            pwd &&
-            echo 'Crave devspace is working' &&
-            touch test_success.txt &&
-            ls -la
-          " || echo "Devspace failed or not available"
+          crave run -- "
+            set -e
+
+            echo 'Initializing test workspace...'
+            mkdir -p test && cd test
+
+            echo 'Running repo init (light test)...'
+            repo init -u https://android.googlesource.com/platform/manifest -b master --depth=1
+
+            echo 'Running repo sync (limited test)...'
+            repo sync --force-sync --no-tags --no-clone-bundle -j2 || {
+              echo 'Repo sync failed'
+              exit 1
+            }
+
+            echo 'SYNC TEST SUCCESSFUL'
+            du -sh .
+          "
+
+          echo "=== TEST COMPLETE ==="

@@ -1,4 +1,4 @@
-name: Crave Builder Test (Safe)
+name: Crave Builder Test (Connection Only)
 
 on:
   workflow_dispatch:
@@ -13,8 +13,8 @@ on:
         default: "oxygen"
 
 jobs:
-  test-crave:
-    name: Test Crave Installation + Connection
+  prepare:
+    name: Setup Crave
     runs-on: ubuntu-latest
 
     steps:
@@ -35,7 +35,7 @@ jobs:
           curl -s https://raw.githubusercontent.com/accupara/crave/master/get_crave.sh | bash -s --
 
           if [ ! -f "${PWD}/crave" ]; then
-            echo "Crave binary not found after install"
+            echo "Crave binary missing after install"
             ls -la
             exit 1
           fi
@@ -45,33 +45,27 @@ jobs:
 
           sudo ln -sf $HOME/bin/crave /usr/bin/crave
 
-      - name: Verify Crave install
+      - name: Verify Crave
         run: |
-          which crave
+          which crave || exit 1
           crave --version || true
 
-      - name: Create minimal config (required for auth)
+      - name: Create minimal config
         run: |
-          echo "Creating minimal crave.conf..."
-
           cat > crave.conf <<EOF
           username=${CRAVE_USERNAME}
           token=${CRAVE_TOKEN}
           EOF
-
         env:
           CRAVE_USERNAME: ${{ secrets.CRAVE_USERNAME }}
           CRAVE_TOKEN: ${{ secrets.CRAVE_TOKEN }}
 
-      - name: Test Crave connection
+      - name: Test Crave connection (SAFE)
         run: |
-          echo "Testing crave CLI..."
+          echo "=== Testing Crave Connection ==="
 
-          crave clone list || echo "Clone list failed (may still be OK)"
+          crave clone list || echo "Clone list not available (ok)"
 
-      - name: Simple command test inside devspace
-        run: |
-          echo "Running lightweight test..."
+          timeout 30s crave devspace -- "echo CONNECTION_OK" || echo "Devspace not active"
 
-          timeout 30s crave devspace -- "echo 'Crave connection successful' || true"
-        continue-on-error: true
+          echo "=== TEST COMPLETE ==="

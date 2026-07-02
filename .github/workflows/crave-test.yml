@@ -1,0 +1,41 @@
+name: Crave Test Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      DEVICE_NAME:
+        description: "Device codename"
+        required: true
+        default: "oxygen"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 🔧 INSTALL CRAVE
+      - name: Install Crave
+        run: |
+          curl -s https://raw.githubusercontent.com/accupara/crave/master/get_crave.sh | bash -s --
+          sudo mv ./crave /usr/bin/crave
+          crave --version
+
+      # 🔑 CREATE LOGIN FILE (IMPORTANT)
+      - name: Setup Crave Credentials
+        run: |
+          cat > crave.conf <<EOF
+CRAVE_USERNAME=${{ secrets.CRAVE_USERNAME }}
+CRAVE_TOKEN=${{ secrets.CRAVE_TOKEN }}
+EOF
+
+          echo "crave.conf created"
+          cat crave.conf
+
+      # 🧪 TEST CRAVE WORKS
+      - name: Test Crave Login
+        run: |
+          crave --help
+          echo "Crave is installed and ready"

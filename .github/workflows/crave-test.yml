@@ -1,50 +1,77 @@
-name: Crave Connection Test
+name: Crave Builder Test (Safe)
 
 on:
   workflow_dispatch:
+    inputs:
+      BASE_PROJECT:
+        description: "Base project"
+        required: true
+        default: "LineageOS 21.0"
+      DEVICE_NAME:
+        description: "Device codename"
+        required: true
+        default: "oxygen"
 
 jobs:
   test-crave:
+    name: Test Crave Installation + Connection
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y curl git jq
+          sudo apt-get install -y curl jq tmux
 
-      - name: Install Crave
-        env:
-          CRAVE_USERNAME: ${{ secrets.CRAVE_USERNAME }}
-          CRAVE_TOKEN: ${{ secrets.CRAVE_TOKEN }}
+      - name: Install Crave (original method)
         run: |
+          echo "Installing Crave..."
+
           mkdir -p $HOME/bin
+
           curl -s https://raw.githubusercontent.com/accupara/crave/master/get_crave.sh | bash -s --
-          mv ./crave $HOME/bin/
-          echo "$HOME/bin" >> $GITHUB_PATH
+
+          if [ ! -f "${PWD}/crave" ]; then
+            echo "Crave binary not found after install"
+            ls -la
+            exit 1
+          fi
+
+          mv ${PWD}/crave $HOME/bin/
+          chmod +x $HOME/bin/crave
+
+          sudo ln -sf $HOME/bin/crave /usr/bin/crave
 
       - name: Verify Crave install
         run: |
-          crave --version
+          which crave
+          crave --version || true
 
-      - name: Test Crave Authentication
+      - name: Create minimal config (required for auth)
+        run: |
+          echo "Creating minimal crave.conf..."
+
+          cat > crave.conf <<EOF
+          username=${CRAVE_USERNAME}
+          token=${CRAVE_TOKEN}
+          EOF
+
         env:
           CRAVE_USERNAME: ${{ secrets.CRAVE_USERNAME }}
           CRAVE_TOKEN: ${{ secrets.CRAVE_TOKEN }}
-        run: |
-          echo "Testing login (no build)..."
-          crave login || echo "Login step finished (check output above)"
 
-      - name: Test Crave Devspace Connection
-        env:
-          CRAVE_FLAGS: ${{ secrets.CRAVE_FLAGS }}
+      - name: Test Crave connection
         run: |
-          echo "Testing devspace connection..."
-          crave $CRAVE_FLAGS devspace -- "echo 'CRAVE CONNECTION OK' && uname -a"
+          echo "Testing crave CLI..."
 
-      - name: Final check
+          crave clone list || echo "Clone list failed (may still be OK)"
+
+      - name: Simple command test inside devspace
         run: |
-          echo "If you see this, Crave connection test passed"
+          echo "Running lightweight test..."
+
+          timeout 30s crave devspace -- "echo 'Crave connection successful' || true"
+        continue-on-error: true

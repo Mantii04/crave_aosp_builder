@@ -1,20 +1,16 @@
-name: Crave Builder Test (Connection Only)
+name: Crave Devspace Connection Test
 
 on:
   workflow_dispatch:
     inputs:
       BASE_PROJECT:
-        description: "Base project"
+        description: "Base project (test only)"
         required: true
         default: "LineageOS 21.0"
-      DEVICE_NAME:
-        description: "Device codename"
-        required: true
-        default: "oxygen"
 
 jobs:
-  prepare:
-    name: Setup Crave
+  test:
+    name: Test Real Crave Devspace
     runs-on: ubuntu-latest
 
     steps:
@@ -35,7 +31,7 @@ jobs:
           curl -s https://raw.githubusercontent.com/accupara/crave/master/get_crave.sh | bash -s --
 
           if [ ! -f "${PWD}/crave" ]; then
-            echo "Crave binary missing after install"
+            echo "Crave install failed"
             ls -la
             exit 1
           fi
@@ -47,10 +43,10 @@ jobs:
 
       - name: Verify Crave
         run: |
-          which crave || exit 1
+          which crave
           crave --version || true
 
-      - name: Create minimal config
+      - name: Create Crave config (AUTH)
         run: |
           cat > crave.conf <<EOF
           username=${CRAVE_USERNAME}
@@ -60,12 +56,15 @@ jobs:
           CRAVE_USERNAME: ${{ secrets.CRAVE_USERNAME }}
           CRAVE_TOKEN: ${{ secrets.CRAVE_TOKEN }}
 
-      - name: Test Crave connection (SAFE)
+      - name: Start REAL Devspace test
         run: |
-          echo "=== Testing Crave Connection ==="
+          echo "Starting devspace test..."
 
-          crave clone list || echo "Clone list not available (ok)"
-
-          timeout 30s crave devspace -- "echo CONNECTION_OK" || echo "Devspace not active"
-
-          echo "=== TEST COMPLETE ==="
+          crave devspace -- "
+            echo '--- INSIDE DEVSPACE ---' &&
+            whoami &&
+            pwd &&
+            echo 'Crave devspace is working' &&
+            touch test_success.txt &&
+            ls -la
+          " || echo "Devspace failed or not available"

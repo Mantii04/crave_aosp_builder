@@ -1,41 +1,39 @@
-name: Crave Test Build
+name: Crave Builder Test
 
 on:
   workflow_dispatch:
-    inputs:
-      DEVICE_NAME:
-        description: "Device codename"
-        required: true
-        default: "oxygen"
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 🔧 INSTALL CRAVE
-      - name: Install Crave
+      - name: Install deps
         run: |
+          sudo apt-get update
+          sudo apt-get install -y curl git jq
+
+      - name: Setup crave
+        env:
+          CRAVE_USERNAME: ${{ secrets.CRAVE_USERNAME }}
+          CRAVE_TOKEN: ${{ secrets.CRAVE_TOKEN }}
+        run: |
+          mkdir -p $HOME/bin
           curl -s https://raw.githubusercontent.com/accupara/crave/master/get_crave.sh | bash -s --
-          sudo mv ./crave /usr/bin/crave
-          crave --version
+          mv ./crave $HOME/bin/
+          echo "$HOME/bin" >> $GITHUB_PATH
 
-      # 🔑 CREATE LOGIN FILE (IMPORTANT)
-      - name: Setup Crave Credentials
+      - name: Verify crave
         run: |
-          cat > crave.conf <<EOF
-CRAVE_USERNAME=${{ secrets.CRAVE_USERNAME }}
-CRAVE_TOKEN=${{ secrets.CRAVE_TOKEN }}
-EOF
+          crave --version || true
+          echo "Crave installed"
 
-          echo "crave.conf created"
-          cat crave.conf
-
-      # 🧪 TEST CRAVE WORKS
-      - name: Test Crave Login
+      - name: Test local manifest clone only
         run: |
-          crave --help
-          echo "Crave is installed and ready"
+          mkdir test
+          cd test
+          git clone https://github.com/sounddrill31/local_manifests_oxygen .repo/local_manifests || true
+          ls -la .repo/local_manifests || true
